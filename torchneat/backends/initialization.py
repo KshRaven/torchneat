@@ -1,0 +1,62 @@
+"""
+Parameter initialization, written once for every device. Only the init kernel (``cpu/initialization.py`` and
+``gpu/initialization.py``) and the array/RNG handling of the :class:`~torchneat.base.backend.Backend` differ.
+"""
+
+import time as clock
+
+import torch
+
+from ..config import Config
+from ..nn.module import NeatModule
+from ..utils.console import CM, Fore
+from . import seeding
+from .functional import calc_grid
+from .interface import Backend
+from .util import clamp_to_epsilon, effective_epsilon, init_type_code, parameter_dtype, reshape_to_ndim
+
+
+def initialize(backend: Backend, config: Config, module: NeatModule, tpb=1, verbose: bool | int = False):
+    seeding.configure(config.general.seed)
+    ts = clock.perf_counter()
+    init_type = init_type_code(config)
+
+    for param in module.neat_parameters():
+        dtype = parameter_dtype(param.data.dtype)
+        # Clone the existing parameter (the init kernel writes into it in place)
+        array = param.data.clone().to(dtype)
+        original_shape = param.data.shape
+        # In case dims are greater than 3, flatten the extra dimensions
+        array = reshape_to_ndim(array, 3)[0]
+        # Convert param to a device array
+        array = backend.asarray(array)
+        # Get kernel dims
+        kernel_shape = calc_grid(*array.shape, tpb=tpb)
+        # Get rng states for each element in the param
+        rng_states, threads_total = backend.normal_states(kernel_shape)
+        # Run kernel
+        backend.initialize(
+            array, init_type, config.genome.weight_init_mean, config.genome.weight_init_std,
+            config.genome.weight_min_value, config.genome.weight_max_value, rng_states, kernel_shape,
+            info=(param.dtype, param.device, kernel_shape, threads_total, array.shape, original_shape)
+        )
+
+        # Never hand out exact zeros (reproduction's post-mutation clamp does the same for children)
+        clamp_to_epsilon(backend.xp, array, effective_epsilon(config, dtype))
+
+        # Copy data back to parameter
+        param.data = torch.from_dlpack(array.reshape(original_shape))
+
+        # Remove data from the device
+        del rng_states, array
+
+    # Remove data
+    backend.release()
+
+    # Limit init values according the module specifications
+    module.update_limit()
+    for m in module.neat_modules():
+        m.update_limit()
+
+    if verbose and verbose >= 2:
+        print(f"{CM('Initialized genomes in ', Fore.CYAN)} in {round(clock.perf_counter() - ts, 2)}s")

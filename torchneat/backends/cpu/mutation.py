@@ -1,0 +1,110 @@
+"""CPU mutation kernels (numba, prange). See ``torchneat.base.mutation`` for the notes on how mutation works."""
+
+import numpy as np
+from numba import njit, prange
+from numpy import ndarray as CPUArray
+
+from .functional import clamp, normal, prob
+from .initialization import initialize_genome
+
+
+@njit(cache=True)
+def mutate_genome(parameter: CPUArray, g: int, x: int, y: int, mutate_rate: float, mutate_power: float,
+                  replace_rate: float, init_type: int, mean: float, std: float, minimum: float, maximum: float,
+                  ssm: bool, add_param: float, delete_param: float, epsilon: float,
+                  probabilities: tuple[CPUArray, ...], normals: CPUArray, rng_index: int):
+    value = parameter[g, x, y]
+
+    zero_param = abs(value) <= epsilon
+    if ssm:
+        div = max(1.0, add_param + delete_param)
+        r = prob(probabilities[0], rng_index)
+        if r < (add_param / div):
+            if zero_param:
+                initialize_genome(
+                    parameter, g, x, y,
+                    init_type, mean, std, minimum, maximum,
+                    normals, rng_index
+                )
+            # else:
+            #     clamp(
+            #         value + normal(normals, rng_index, 0., mutate_power/3),
+            #         minimum, maximum
+            #     )
+        elif r < ((delete_param + add_param) / div):
+            parameter[g, x, y] = epsilon
+    else:
+        if prob(probabilities[0], rng_index) < add_param:
+            if zero_param:
+                initialize_genome(
+                    parameter, g, x, y,
+                    init_type, mean, std, minimum, maximum,
+                    normals, rng_index
+                )
+            # else:
+            #     clamp(
+            #         value + normal(normals, rng_index, 0., mutate_power/3),
+            #         minimum, maximum
+            #     )
+        elif prob(probabilities[1], rng_index) < delete_param:
+            parameter[g, x, y] = epsilon
+
+    r = prob(probabilities[-1], rng_index)
+    if r < mutate_rate:
+        parameter[g, x, y] = clamp(
+            value + normal(normals, rng_index, 0., mutate_power),
+            minimum, maximum
+        )
+    elif r < replace_rate + mutate_rate:
+        initialize_genome(
+            parameter, g, x, y,
+            init_type, mean, std, minimum, maximum,
+            normals, rng_index
+        )
+
+
+@njit(parallel=True, cache=True)
+def mutate(
+        updates: CPUArray, children: CPUArray,
+        mutate_rate: float, mutate_power: float,
+        replace_rate: float, init_type: int, mean: float, std: float, minimum: float, maximum: float,
+        ssm: bool, add_param: float, delete_param: float, epsilon: float,
+        probabilities: tuple[CPUArray, ...], normals: CPUArray,
+        # debugging: CPUArray
+):
+    ret_code: int = 0
+    if updates.ndim != 3: ret_code = 1
+
+    if not ret_code:
+        s_g, s_x, s_y = updates.shape
+        # Parameter shape (genomes, *spatial_dims)
+        g_lim = updates.shape[0]
+        x_lim = 1 if updates.ndim <= 1 else updates.shape[1]
+        y_lim = 1 if updates.ndim <= 2 else updates.shape[2]
+
+        # Flat index -> (genome, x, y) without materializing a list of index tuples
+        total = s_g * s_x * s_y
+        yz = s_x * s_y
+        for i in prange(total):
+            # prange indices are unsigned: cast to int64 so // and % stay integers (uint64 with int64 -> float64)
+            flat = np.int64(i)
+            genome_idx = flat // yz
+            x = (flat % yz) // s_y
+            y = flat % s_y
+
+            # Linearized thread index
+            rng_index = (y * s_x * s_g) + (x * s_g) + genome_idx
+
+            if genome_idx < g_lim and x < x_lim and y < y_lim:
+                if children[genome_idx]:
+                    mutate_genome(
+                        updates, genome_idx, x, y,
+                        mutate_rate, mutate_power,
+                        replace_rate, init_type, mean, std, minimum, maximum,
+                        ssm, add_param, delete_param, epsilon,
+                        probabilities, normals, rng_index
+                    )
+            else:
+                ret_code = 2
+
+    return ret_code
