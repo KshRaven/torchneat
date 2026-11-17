@@ -1,0 +1,61 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+env:
+  CI: "true"
+  PYTHONUTF8: "1"
+  NUMBA_CACHE_DIR: ${{ github.workspace }}/.numba_cache
+
+jobs:
+  test:
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest]
+        python-version: ["3.10", "3.11", "3.12", "3.13", "3.14"]
+        include:
+          - os: windows-latest
+            python-version: "3.13"
+          - os: macos-latest
+            python-version: "3.13"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+      # CPU-only PyTorch keeps the runner download small; GPU tests skip themselves when no CUDA device is usable
+      - run: pip install torch --index-url https://download.pytorch.org/whl/cpu
+        if: runner.os != 'macOS'
+      - run: pip install -e ".[dev]"
+      - run: python -m compileall -q torchneat scripts tests
+      - run: python -c "import torchneat, torchneat.nn, torchneat.rl, torchneat.backends"
+      - run: ruff check .
+      - run: pytest -q -m "not gpu"
+
+  package:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install build twine
+      - run: python scripts/pypimgr/pypimgr.py build
+        env:
+          PYPIMGR_NO_VENV: "1"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: .cache/pypimgr/torchneat/artifacts/*
+          if-no-files-found: error
