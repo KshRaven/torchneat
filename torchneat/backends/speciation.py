@@ -12,7 +12,7 @@ from numba.typed import Dict, List
 
 from ..config import Config
 from ..core.genome import INT, Genome
-from ..core.species import GenomeDistanceCache, Species, SpeciesSet, get_ct
+from ..core.species import GenomeDistanceCache, Specie, Species, get_ct
 from ..nn.module import NeatModule
 from ..utils.console import CM, Fore
 from . import seeding
@@ -43,7 +43,7 @@ def update_distances_cache(backend: Backend, config: Config, module: NeatModule,
 #       running counter and call unspeciated.remove(...) - all inherently
 #       sequential/order-dependent, not an embarrassingly-parallel per-element
 #       grid like the array kernels above.
-def _get_representatives(species_dict: dict[int, Species], population: dict[int, Genome], unspeciated: list[int],
+def _get_representatives(species_dict: dict[int, Specie], population: dict[int, Genome], unspeciated: list[int],
                          representatives: dict[int, int], members: dict[int, list[int]],
                          distance_cache: GenomeDistanceCache):
     def gamma(candidates_: list[tuple[float, Genome]]):
@@ -62,15 +62,23 @@ def _get_representatives(species_dict: dict[int, Species], population: dict[int,
     for i in range(len(species_dict)):
         sid = mapping[i]
         species = species_dict[sid]
-        # Loop through unspeciated genomes
+        # Loop through unspeciated genomes. The previous representative is carried into the new generation by
+        # reproduction; it is not a candidate itself, so the representative drifts to its nearest neighbour while
+        # the species keeps its identity.
+        old_rid = species.representative.key
         candidates: list[tuple[float, Genome]] = []
+        old_present = False
         for j in range(len(unspeciated)):
             gid = unspeciated[j]
             genome = population[gid]
-            # Replaced calculating distance with GPU function for updating distance_cache
             distance = distance_cache.get(species.representative, genome)
-            # Add candidate to list
+            if gid == old_rid:
+                old_present = True
+                continue
             candidates.append((distance, genome))
+        if len(candidates) == 0 and old_present:
+            candidates.append((distance_cache.get(species.representative, population[old_rid]), population[old_rid]))
+            old_present = False
 
         # The new representative is the genome closest to the current representative.
         ignored_rdist, new_rep = gamma(candidates)
@@ -78,6 +86,10 @@ def _get_representatives(species_dict: dict[int, Species], population: dict[int,
         representatives[sid] = new_rid
         members[sid] = List([new_rid])
         unspeciated.remove(new_rid)
+        # The previous representative stays a member of its own species
+        if old_present and old_rid in unspeciated:
+            members[sid].append(old_rid)
+            unspeciated.remove(old_rid)
 
 
 @njit(nogil=True, cache=True)
@@ -133,7 +145,7 @@ def _get_species(available_key: int, population: dict[int, Genome], unspeciated:
 
 
 @njit(nogil=True, cache=True)
-def _update_collection(genus: int, population: dict[int, Genome], species: dict[int, Species],
+def _update_collection(genus: int, population: dict[int, Genome], species: dict[int, Specie],
                        genome_to_species: dict[int, int], representatives: dict[int, int],
                        members: dict[int, list[int]], generation: int):
     mapping = list(representatives.keys())
@@ -142,7 +154,7 @@ def _update_collection(genus: int, population: dict[int, Genome], species: dict[
         rid = representatives[sid]
         specie = species.get(sid)
         if specie is None:
-            specie = Species(sid, generation, genus)
+            specie = Specie(sid, generation, genus)
             species[sid] = specie
 
         members_ = members[sid]
@@ -155,7 +167,7 @@ def _update_collection(genus: int, population: dict[int, Genome], species: dict[
 
 
 def speciate(backend: Backend, config: Config, genera: list[int], modules: dict[int, NeatModule],
-             species_set: SpeciesSet, population: dict[int, Genome],
+             species_set: Species, population: dict[int, Genome],
              generation: int, tpb=10, verbose: bool | int = False):
     """
     Place genomes into species by genetic similarity.

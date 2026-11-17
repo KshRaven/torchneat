@@ -18,7 +18,7 @@ from numba.typed import Dict, List
 
 from ..config import Config
 from ..core.genome import Genome
-from ..core.species import FLOAT, INT, SPECIES, Species, SpeciesSet
+from ..core.species import FLOAT, INT, SPECIES, Specie, Species
 from ..core.stagnation import Stagnation
 from ..nn.module import NeatModule, check_for_illegal_zeros
 from ..reporting.base import ReporterSet
@@ -144,12 +144,12 @@ def select_parents(pool_fitness, pool_foreign, pool_keys, spawn, clone_cutoff, c
 
 
 @njit(nogil=True, cache=True)
-def create_children(genus: int, genus_population: dict[int, Genome], population: dict[int, Genome], species: dict[int, Species],
-                    available_gid: int, spawn_amounts: list[int], remaining_species: list[Species], to_delete: list[int],
+def create_children(genus: int, genus_population: dict[int, Genome], population: dict[int, Genome], species: dict[int, Specie],
+                    available_gid: int, spawn_amounts: list[int], remaining_species: list[Specie], to_delete: list[int],
                     elitism: float, survival_threshold: float, clone_threshold: float, cross_threshold: float,
                     cross_multiplier: float, darwin_multiplier: float, enforce_species: bool,
                     criteria: str, ancestors: dict[int, tuple[Genome, Genome]], equal_params: bool, preserve: bool,
-                    rng_seed: int):
+                    rng_seed: int, bank_members: list[Genome]):
     np.random.seed(rng_seed)  # Numba's own RNG state; does not touch the Python-level numpy global state
     if len(spawn_amounts) != len(remaining_species):
         raise ValueError(f"Mismatch in reproduction data")
@@ -291,6 +291,13 @@ def create_children(genus: int, genus_population: dict[int, Genome], population:
                     genus_population[m.key] = m
                     spawn -= 1
 
+        # The representative anchors the species identity, so it always takes part in the next generation
+        representative = specie.representative
+        if representative is not None and representative.key in population and \
+                representative.key not in genus_population:
+            genus_population[representative.key] = population[representative.key]
+            spawn -= 1
+
         if spawn <= 0:
             continue
 
@@ -311,7 +318,18 @@ def create_children(genus: int, genus_population: dict[int, Genome], population:
         #   clone_threshold: Fraction of remaining spawn produced through direct cloning instead of crossover.
 
         # Randomly choose parents and produce the number of offspring allotted to the species.
-        pool = List(list(old_members) + list(extra_members)) # TODO: Numba currently cannot add typed lists
+        # Banked genomes are extra parents of this genus; the ones still alive in this species' pool are not repeated.
+        bank_start = len(old_members) + len(extra_members)
+        bank_extra: list[Genome] = List.empty_list(GENOME)
+        for bank_genome in bank_members:
+            present = False
+            for member in old_members:
+                if member.key == bank_genome.key:
+                    present = True
+                    break
+            if not present:
+                bank_extra.append(bank_genome)
+        pool = List(list(old_members) + list(extra_members) + list(bank_extra)) # TODO: Numba currently cannot add typed lists
         pool_size = len(pool)
         pool_fitness = np.empty(pool_size, np.float64)
         pool_foreign = np.zeros(pool_size, np.bool_)
@@ -319,7 +337,8 @@ def create_children(genus: int, genus_population: dict[int, Genome], population:
         for pi in range(pool_size):
             pg = pool[pi]
             pool_fitness[pi] = pg.fitness if pg.fitness is not None else -np.inf
-            pool_foreign[pi] = pg.genus != genus
+            # Banked genomes can only be a second parent while the first has to come from the species being filled
+            pool_foreign[pi] = pg.genus != genus or (enforce_species and pi >= bank_start)
             pool_keys[pi]    = pg.key
         first_parents  = np.zeros(spawn, np.int64)
         second_parents = np.zeros(spawn, np.int64)
@@ -348,7 +367,8 @@ def create_children(genus: int, genus_population: dict[int, Genome], population:
 def update_children(
         backend: Backend, config: Config, genus: int, modules: dict[int, NeatModule],
         old_population: dict[int, Genome], new_population: dict[int, Genome],
-        ancestors: dict[int, tuple[Genome, Genome]], tpb=1, seed: int = None, verbose: bool | int = False
+        ancestors: dict[int, tuple[Genome, Genome]], tpb=1, seed: int = None, verbose: bool | int = False,
+        genebank=None
 ):
     xp = backend.xp
     for m in modules[genus].neat_modules():
@@ -360,6 +380,22 @@ def update_children(
     old_mapping = modules[genus].mapping
     sources = {}
     genera  = {}
+    # Parents that are no longer in the population are read from the bank: their rows are appended to the sources
+    bank_keys: dict[int, list[int]] = {}
+    if genebank is not None:
+        for key, genome in new_population.items():
+            if key in old_population:
+                continue
+            for parent in ancestors[key]:
+                if parent.key not in modules[parent.genus].mapping:
+                    keys = bank_keys.setdefault(parent.genus, [])
+                    if parent.key not in keys:
+                        keys.append(parent.key)
+    bank_rows: dict[int, dict[int, int]] = {}
+    for bank_genus, keys in bank_keys.items():
+        base = modules[bank_genus].neat_parameters()[0].data.shape[0]
+        bank_rows[bank_genus] = {key: base + offset for offset, key in enumerate(keys)}
+    parent_mappings = {g: ({**m.mapping, **bank_rows[g]} if g in bank_rows else m.mapping) for g, m in modules.items()}
     emergency_keys = [key for key, genome in new_population.items() if key in old_population and genome.genus == genus]
     if len(emergency_keys) == 0:
         emergency_keys = [key for key, genome in old_population.items() if genome.genus == genus]
@@ -383,7 +419,7 @@ def update_children(
                 parent1, parent2 = ancestors[key]
                 if parent1.fitness < parent2.fitness:
                     parent1, parent2 = parent2, parent1
-                mapping1, mapping2 = modules[parent1.genus].mapping, modules[parent2.genus].mapping
+                mapping1, mapping2 = parent_mappings[parent1.genus], parent_mappings[parent2.genus]
                 sources[index] = (mapping1[parent1.key], mapping2[parent2.key], old_mapping[emeg_key])
                 genera[index]  = (parent1.genus, parent2.genus, genus)
     except Exception as e:
@@ -415,14 +451,21 @@ def update_children(
     # NOTE: Parameters are handled one at a time on purpose, so that a single parameter can be as large as the
     #       device's dedicated memory allows.
     parameter_updates = {}
-    for genus_param, param_group in zip(modules[genus].neat_parameters(), pgs):
+    for position, (genus_param, param_group) in enumerate(zip(modules[genus].neat_parameters(), pgs)):
         dtype = parameter_dtype(genus_param.data.dtype)
         eps_eff = effective_epsilon(config, dtype)
         # ------------------------------ Sending data to the device ------------------------------ #
         array_update, original_shape = reshape_to_ndim(
             backend.zeros((len(new_population), *genus_param.original_shape)), 3, xp
         )
-        array_sources = tuple([backend.asarray(reshape_to_ndim(p.data.to(dtype), 3)[0]) for p in param_group])
+        source_data = []
+        for source_genus, p in zip(modules.keys(), param_group):
+            data = p.data
+            if source_genus in bank_rows:
+                data = torch.cat([data, genebank.stack(list(bank_rows[source_genus]), position, data)], dim=0)
+            source_data.append(data)
+        array_sources = tuple([backend.asarray(reshape_to_ndim(d.to(dtype), 3)[0]) for d in source_data])
+        del source_data
         # ------------------------------ Define crossover kernel and randomizer values ------------------------------ #
         genome_num = len(new_population)
         kernel_shape = calc_grid(genome_num, *array_update.shape[1:3], tpb=tpb)
@@ -512,8 +555,8 @@ def reproduce(
         backend: Backend,
         config: Config, genera: list[int], modules: dict[int, NeatModule], population: dict[int, Genome],
         ancestors: dict[int, tuple[Genome, Genome]], generation: int, to_delete: list[int], genome_indexer: int,
-        stagnation: Stagnation, species_set: SpeciesSet, reporters: ReporterSet,
-        tpb=1, verbose: bool | int = False):
+        stagnation: Stagnation, species_set: Species, reporters: ReporterSet,
+        tpb=1, verbose: bool | int = False, genebank=None):
     seeding.configure(config.general.seed)
     assert all([module.genus in genera for module in modules.values()])
     # Filter out stagnated species, collect the set of non-stagnated
@@ -528,7 +571,7 @@ def reproduce(
     parameter_updates = {}
     for genomes, module, genus in zip(population_genera, modules_genera, genera):
 
-        remaining_species: list[Species] = List.empty_list(SPECIES)
+        remaining_species: list[Specie] = List.empty_list(SPECIES)
         all_fitnesses: list[float]       = List.empty_list(FLOAT)
         for sid, specie, stagnant in stagnation.update(genus, species_set, generation):
             if stagnant and verbose:
@@ -581,6 +624,7 @@ def reproduce(
                 del species_set.species[key]
         ts = clock.perf_counter()
         # print(f"Current genome index = {genome_indexer}")
+        bank_members = genebank.members(genus) if genebank is not None else List.empty_list(GENOME)
         genome_indexer = create_children(
             genus, genus_population, population, species_set.species, genome_indexer, spawn_amounts, remaining_species,
             to_delete, config.reproduction.elitism,
@@ -588,10 +632,11 @@ def reproduce(
             config.reproduction.cross_multiplier, config.reproduction.darwin_multiplier,
             config.reproduction.enforce_species,
             config.general.fitness_criterion, ancestors, False, config.reproduction.preserve_elite,
-            seeding.numba_seed()
+            seeding.numba_seed(), bank_members
         )
         parameter_updates[genus] = update_children(
-            backend, config, genus, modules, population, genus_population, ancestors, tpb, config.general.seed, verbose
+            backend, config, genus, modules, population, genus_population, ancestors, tpb, config.general.seed, verbose,
+            genebank
         )
         if verbose and verbose >= 2:
             print(f"{CM('Spawned new genomes in ', Fore.CYAN)} in {round(clock.perf_counter() - ts, 2)}s")

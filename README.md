@@ -49,7 +49,7 @@ Everything you normally take from `torch.nn` (activations, dropout, flatten, con
 
 | Package | Contents |
 |---|---|
-| `torchneat.core` | `Genome`, `Species`/`SpeciesSet`, `Stagnation`, `Reproduction`, `Population` |
+| `torchneat.core` | `Genome`, `Specie`/`Species`, `Stagnation`, `Reproduction`, `Population` |
 | `torchneat.backends` | device-independent init/reproduce/speciate orchestration, `cpu/` and `gpu/` kernels, seeding |
 | `torchneat.nn` | `NeatParameter`, `NeatModule`, `Model`; layers, attention/transformer blocks, activations, PyTorch re-exports; `legacy/` |
 | `torchneat.rl` | `NEAT` and `PPO` trainers, rollout buffers, logger |
@@ -76,6 +76,7 @@ Checkpoints use `pickle`; only load files you trust.
 ## Documentation
 
 - [Configuration](docs/configuration.md): experiment settings and schedulers.
+- [Ancestry and GeneBank](docs/ancestry-genebank.md): lineage tracking and elite parent storage.
 - [Reinforcement learning](docs/reinforcement-learning.md): trainers, rollout behaviour and metrics.
 
 ## Development

@@ -24,9 +24,11 @@ from ..utils.storage import load, save
 
 # from torchneat.util.fancy_text import CM, Fore
 from ..utils.timing import clock, eta
-from .genome import INT, Genome, load_genome
+from .ancestry import Ancestry
+from .genebank import GeneBank
+from .genome import INT, Genome, load_genome, mark_created, update_genome_stats
 from .reproduction import Reproduction
-from .species import GENOME, SPECIES, SpeciesSet, load_species
+from .species import GENOME, SPECIES, Species, load_species
 
 
 class CompleteExtinctionException(Exception):
@@ -46,12 +48,14 @@ class Population(object):
     genus_indexer = Indexer(0)
     group_indexer = Indexer(0)
 
-    def __init__(self, genomes: int, module: NeatModule, config: Config = None, state_dict: dict[str, Any] = None, **options):
+    def __init__(self, genomes: int | None, module: NeatModule, config: Config = None, state_dict: dict[str, Any] = None, **options):
         # self.genus_indexer = Indexer(0)
         if config is None: config = Config()
         
         # ------------------------------ Globals ------------------------------ #
-        requested_genera = manage_params(options, 'genera', 1)
+        requested_genera = manage_params(options, 'genera', None)
+        if requested_genera is None:
+            requested_genera = config.general.genera
         if isinstance(requested_genera, int):
             if requested_genera < 1:
                 raise ValueError("genera must be a positive count or a non-empty iterable of IDs")
@@ -62,7 +66,10 @@ class Population(object):
                 raise ValueError("genera must be a positive count or a non-empty iterable of integer IDs")
             self.genus_indexer.set(max(self.genus_indexer.get(), max(self.genera) + 1))
         self.genus: int = self.genera[0]
-        self._init_pop_size = genomes
+        if genomes is not None and state_dict is None:
+            config.general.min_pop_size = int(genomes)
+        self._init_pop_size = int(genomes) if genomes is not None else int(config.general.min_pop_size)
+        genomes = self._init_pop_size
         params = module.neat_parameters()
         if not params or len(params) == 0:
             raise ValueError(f"Module has no NeatParameters()")
@@ -82,8 +89,21 @@ class Population(object):
 
         # ------------------------------ Evaluation ------------------------------ #
         self.genomes: dict[int, Genome] = Dict.empty(INT, GENOME)
-        self.species_set = SpeciesSet(self.config, self.reporters)
+        self.species_set = Species(self.config, self.reporters)
         self.reproduction = Reproduction(self.reporters, self.config)
+        ancestry = manage_params(options, 'ancestry', None)
+        if isinstance(ancestry, Ancestry):
+            self.ancestry = ancestry
+        else:
+            self.ancestry = Ancestry(self.config.ancestry.enabled if ancestry is None else bool(ancestry))
+        genebank = manage_params(options, 'genebank', None)
+        if isinstance(genebank, GeneBank):
+            self.genebank = genebank
+        else:
+            self.genebank = GeneBank.from_config(self.config.genebank)
+            if genebank is not None:
+                self.genebank._enabled = bool(genebank)
+        self.genebank.attach(self)
         self.to_delete: list[int] = List.empty_list(INT)
 
         # ------------------------------ Data Loading ------------------------------ #
@@ -159,6 +179,8 @@ class Population(object):
         for genus, avatars in population.legends.items():
             assert genus not in self.genera
             self.legends[genus] = avatars
+        self.ancestry.merge(population.ancestry)
+        self.genebank.merge(population.genebank)
         self.genera.extend(population.genera)
 
         pass
@@ -342,6 +364,7 @@ class Population(object):
                         closest_distance = distance
 
             return best_genome
+        update_genome_stats(self.genomes, self.generation, self.config.general.fitness_criterion == 'min')
         # Track the best genome ever seen.
         for genus in self.genera:
             self.best_genomes[genus] = get_best_genomes(
@@ -495,12 +518,19 @@ class Population(object):
                     # self.reproduction.reproduce(self.species, self.genomes, self.modules, self.generation,
                     #                             self.to_delete, reproduction_function, verbose)
 
+                    self.genebank.update(self)
+                    first_new_key = self.reproduction.genome_indexer.get()
+                    self.reproduction.reset_ancestors()
                     self.reproduction.genome_indexer.set(reproduce(
                         self.config, self.genera, self.modules, self.genomes, self.reproduction.ancestors,
                         self.generation, self.to_delete, self.reproduction.genome_indexer.get(), self.reproduction.stagnation,
                         self.species_set, self.reporters,
-                        tpb=self.threads_per_block, verbose=verbose
+                        tpb=self.threads_per_block, verbose=verbose,
+                        genebank=self.genebank if self.genebank.enabled else None
                     ))
+
+                    mark_created(self.genomes, first_new_key, self.generation + 1)
+                    self.ancestry.record(self.reproduction.ancestors, self.genomes, self.generation + 1)
 
                     for ranking in self.rankings.values():
                         for key in list(ranking.keys()):
@@ -548,6 +578,10 @@ class Population(object):
                 'key': genome.key,
                 'fitness': genome.fitness,
                 'genus': genome.genus,
+                'created': genome.created,
+                'age': genome.age,
+                'best_fitness': genome.best_fitness,
+                'improved': genome.improved,
             }
             genomes.append(genome_dict)
         best_keys = {
@@ -569,6 +603,8 @@ class Population(object):
                 'adjusted_fitness': specie.adjusted_fitness,
                 'fitness_history': list(specie.fitness_history),
                 'genus': specie.genus,
+                'age': specie.age,
+                'stagnant_time': specie.stagnant_time,
             }
             species.append(specie_dict)
         # ------------------------------ State ------------------------------ #
@@ -588,6 +624,8 @@ class Population(object):
             'species_indexer': self.species_set.species_indexer.get(),
             'survival_rate': self.survival_rate,
             'loop_idx': self.loop_idx,
+            'ancestry': self.ancestry.state_dict(),
+            'genebank': self.genebank.state_dict(),
         }
 
     def _save_state_dict(
@@ -849,6 +887,10 @@ class Population(object):
             }
         self.survival_rate = state_dict.get('survival_rate', getattr(self, 'survival_rate', None))
         self.loop_idx = state_dict.get('loop_idx', getattr(self, 'loop_idx', 0))
+        if state_dict.get('ancestry') is not None and hasattr(self, 'ancestry'):
+            self.ancestry.load_state_dict(state_dict['ancestry'])
+        if state_dict.get('genebank') is not None and hasattr(self, 'genebank'):
+            self.genebank.load_state_dict(state_dict['genebank'])
         # ------------------------------ Species ------------------------------ #
         species_data = state_dict['species']
         ts, ud, ut = clock.perf_counter(), 0, len(species_data)
@@ -928,6 +970,7 @@ class Population(object):
         genera_to_remove = [genus for genus in self.genera if not any(
             genome.genus == genus for genome in genomes_to_keep.values()
         )]
+        self.genebank.drop_genera(genera_to_remove)
         for genus in genera_to_remove:
             remove(self.modules, genus)
             remove(self.best_genomes, genus)

@@ -21,7 +21,7 @@ The configuration stack is implemented in the config package:
 import torchneat as neat
 
 config = neat.Config(file_name="demo", directory="demo")
-config.general.pop_size = 120
+config.general.min_pop_size = 120
 config.genome.weight_mutate_rate = 0.5
 config.genome.weight_mutate_power = 0.2
 config.save(verbose=True)
@@ -36,7 +36,8 @@ This stores the configuration as a JSON file under the storage directory for the
 Controls the overall evolution loop:
 
 - fitness criterion and threshold
-- population size
+- minimum (initial) population size, overridden by the `genomes` argument of `Population`
+- number of genera, overridden by the `genera` option of `Population`
 - reset-on-extinction behavior
 - random seed
 
@@ -74,6 +75,25 @@ Controls reproduction and selection:
 - crossover behavior and multipliers
 - minimum species size
 - purge behavior
+
+### AncestryConfig
+
+Controls lineage tracking (`Population.ancestry`):
+
+- `enabled`: record the parents of every new genome (off by default)
+
+`Population(..., ancestry=True | False | Ancestry(...))` overrides it, and `population.ancestry.enable()` / `.disable()` switch it at any time. Records already stored are kept while it is off. Usage is described in [Ancestry and GeneBank](ancestry-genebank.md).
+
+### GeneBankConfig
+
+Controls the bank of elite genomes that only act as parents (`Population.genebank`):
+
+- `enabled`, `capacity` (genomes kept per `scope`), `top` (best genomes banked every generation)
+- `scope`: `'specie'` (default, limits apply to each species) or `'genus'`
+- `slots`, `per_slot`, `fill`: keep the best genomes per slot id (episode, seed), the remaining capacity is filled by the rolling top genomes when `fill` is set
+- `policy` (`'fitness'` or `'oldest'`), `max_age`
+
+`Population(..., genebank=True | False | GeneBank(...))` overrides it. Genomes can be queued with `genebank.mark(genome, slot=None, score=None)` and `genebank.discard(genome)` during evaluation, or handled before reproduction by a `genebank.scheme(bank, population)` callable. Usage is described in [Ancestry and GeneBank](ancestry-genebank.md).
 
 ### RLConfig
 

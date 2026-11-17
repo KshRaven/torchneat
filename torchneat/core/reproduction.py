@@ -27,6 +27,10 @@ class Reproduction:
         self._config = configuration
         self.ancestors: dict[int, tuple[Genome, Genome]] = Dict.empty(INT, GENOME_TUPLE)
 
+    def reset_ancestors(self):
+        """Parents are only needed for the children of the generation being produced."""
+        self.ancestors = Dict.empty(INT, GENOME_TUPLE)
+
     def create_new(
         self, genus: int | list[int], pop_size: int | dict[int, int], module: NeatModule,
         tpb: int = None, verbose: bool | int = False

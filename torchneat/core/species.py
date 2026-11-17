@@ -29,8 +29,10 @@ GENOME   = Genome.class_type.instance_type
     ('adjusted_fitness', optional(FLOAT)),
     ('fitness_history', types.ListType(FLOAT)),
     ('genus', INT),
+    ('age', INT),
+    ('stagnant_time', INT),
 ])
-class Species(object):
+class Specie(object):
     def __init__(self, key: int, generation: int, genus: int):
         self.key = key
         self.created = generation
@@ -41,6 +43,8 @@ class Species(object):
         self.adjusted_fitness: float = None
         self.fitness_history: list[float] = List.empty_list(FLOAT)
         self.genus = genus
+        self.age = 0
+        self.stagnant_time = 0
 
     def update(self, representative: Genome, members: dict[int, Genome]):
         self.representative = representative
@@ -74,10 +78,10 @@ class GenomeDistanceCache(object):
         return self.total_distance.ravel()
 
 
-SPECIES = Species.class_type.instance_type
+SPECIES = Specie.class_type.instance_type
 
 
-class SpeciesSet:
+class Species:
     """
     Container of the species of every genus. The speciation itself (distances, representatives, grouping, species
     cap) lives in ``torchneat.base.speciation`` and runs on the active device backend.
@@ -87,7 +91,7 @@ class SpeciesSet:
     def __init__(self, configuration: Config, reporters: ReporterSet):
         self.config = configuration
         self.reporters = reporters
-        self.species: dict[int, Species] = Dict.empty(INT, SPECIES)
+        self.species: dict[int, Specie] = Dict.empty(INT, SPECIES)
         self.genome_to_species: dict[int, int] = Dict.empty(INT, INT)
         self.distances_cache = GenomeDistanceCache()
         # (mean, std) of the genetic distances of the last speciation
@@ -109,13 +113,15 @@ class SpeciesSet:
 def load_species(genomes: dict[int, Genome], struct: Dict):
     key                     = struct['key']
     genus                   = struct['genus']
-    specie                  = Species(key, 0, genus)
+    specie                  = Specie(key, 0, genus)
     specie.created          = struct['created']
     specie.last_improved    = struct['last_improved']
     specie.representative   = genomes[struct['representative']]
     specie.members          = Dict([(k, genomes[k]) for k in struct['members']])
     specie.fitness          = struct['fitness']
     specie.adjusted_fitness = struct['adjusted_fitness']
+    specie.age              = struct.get('age', 0)
+    specie.stagnant_time    = struct.get('stagnant_time', 0)
     specie.fitness_history  = List.empty_list(FLOAT)
     for i in struct['fitness_history']:
         specie.fitness_history.append(i)

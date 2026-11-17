@@ -5,7 +5,7 @@ import warnings
 import torch
 
 from ..config import Config
-from ..core.species import SpeciesSet
+from ..core.species import Species
 from ..core.stagnation import Stagnation
 from ..nn import Genome, NeatModule
 from ..reporting import ReporterSet
@@ -195,7 +195,7 @@ def initialize(
 
 def speciate(
         config: Config, genera: list[int], modules: dict[int, NeatModule],
-        species_set: SpeciesSet, population: dict[int, Genome],
+        species_set: Species, population: dict[int, Genome],
         generation: int, tpb: int | None = None, verbose: bool | int = False
     ):
    tpb = _tpb if tpb is None else tpb
@@ -206,13 +206,13 @@ def speciate(
 def reproduce(
         config: Config, genera: list[int], modules: dict[int, NeatModule], population: dict[int, Genome],
         ancestors: dict[int, tuple[Genome, Genome]], generation: int, to_delete: list[int], genome_indexer: int,
-        stagnation: Stagnation, species_set: SpeciesSet, reporters: ReporterSet,
-        tpb: int | None = None, verbose: bool | int = False
+        stagnation: Stagnation, species_set: Species, reporters: ReporterSet,
+        tpb: int | None = None, verbose: bool | int = False, genebank=None
     ):
     tpb = _tpb if tpb is None else tpb
     return DEVICE.reproduce(
         config, genera, modules, population, ancestors, generation, to_delete, genome_indexer,
-        stagnation, species_set, reporters, tpb, verbose
+        stagnation, species_set, reporters, tpb, verbose, genebank
     )
 
 # Apply the device requested through TORCHNEAT_DEVICE (falls back to CPU with a warning when CUDA is unusable)

@@ -5,7 +5,7 @@ from numba.typed import Dict, List
 from ..config import Config
 from ..reporting.base import ReporterSet
 from .constants import BOOL, FLOAT, INT
-from .species import SPECIES, Species, SpeciesSet
+from .species import SPECIES, Specie, Species
 
 
 class Stagnation(object):
@@ -16,7 +16,7 @@ class Stagnation(object):
 
     @staticmethod
     @njit(nogil=True)
-    def get_species_data(species_data: list[tuple[int, Species]], species_dict: dict[int, Species],
+    def get_species_data(species_data: list[tuple[int, Specie]], species_dict: dict[int, Specie],
                          generation: int, criterion: str):
         # NOTE: sequential on purpose. Every iteration appends to the shared `species_data` list, which would race
         #       (and scramble the order) in a parallel loop, and there are only a handful of species anyway.
@@ -42,12 +42,14 @@ class Stagnation(object):
             specie.adjusted_fitness = None
             if specie.fitness > prev_fitness:
                 specie.last_improved = generation
+            specie.age = generation - specie.created
+            specie.stagnant_time = generation - specie.last_improved
 
             species_data.append((sid, specie))
 
     @staticmethod
     @njit(nogil=True)
-    def get_result(result: list[tuple[int, Species, bool]], species_data: list[tuple[int, Species]],
+    def get_result(result: list[tuple[int, Specie, bool]], species_data: list[tuple[int, Specie]],
                    generation: int, species_elitism: int, max_stagnation: int):
         species_fitnesses: list[float] = List.empty_list(FLOAT)
         num_non_stagnant = len(species_data)
@@ -78,7 +80,7 @@ class Stagnation(object):
         # Fitness of every species in the same (ascending) order as `result`, handy for reporting
         return species_fitnesses
 
-    def update(self, genus: int, species_set: SpeciesSet, generation: int):
+    def update(self, genus: int, species_set: Species, generation: int):
         """
         Required interface method. Updates species fitness history information,
         checking for ones that have not improved in max_stagnation generations,
@@ -88,7 +90,7 @@ class Stagnation(object):
         returns a list with stagnant species marked for removal.
         """
 
-        species_data: list[tuple[int, Species]] = List.empty_list(types.Tuple([INT, SPECIES]))
+        species_data: list[tuple[int, Specie]] = List.empty_list(types.Tuple([INT, SPECIES]))
         self.get_species_data(species_data, Dict([(s.key, s) for s in species_set.species.values() if s.genus == genus]),
                               generation, self.fitness_criterion)
 
@@ -99,7 +101,7 @@ class Stagnation(object):
         for item in ordered:
             species_data.append(item)
 
-        result: list[tuple[int, Species, bool]] = List.empty_list(types.Tuple([INT, SPECIES, BOOL]))
+        result: list[tuple[int, Specie, bool]] = List.empty_list(types.Tuple([INT, SPECIES, BOOL]))
         self.get_result(result, species_data, generation,
                         self._config.stagnation.species_elitism, self._config.stagnation.max_stagnation)
 

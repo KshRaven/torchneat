@@ -84,9 +84,9 @@ def test_module_metadata_verifier_accepts_child_name():
 def test_population_state_dict_filepath_and_extra_files():
     with tempfile.TemporaryDirectory() as tmpdir:
         population, _, config = create_test_population(3)
-        config.general.pop_size = 17
+        config.general.min_pop_size = 17
         state = population.state_dict()
-        assert state['config'].general.pop_size == 17
+        assert state['config'].general.min_pop_size == 17
         assert 'module_state_dicts' in state
 
         filepath = Path(tmpdir) / 'checkpoint.neat.pkl'
@@ -102,7 +102,7 @@ def test_population_state_dict_filepath_and_extra_files():
         restored = create_test_population(2)[0]
         restored.load(filepath=str(filepath), strict=False, verbose=False, load_config=True)
         assert len(restored.genomes) == len(population.genomes)
-        assert restored.config.general.pop_size == 17
+        assert restored.config.general.min_pop_size == 17
 
         restored.load(state_dict=state, strict=False, verbose=False)
         assert len(restored.genomes) == len(population.genomes)

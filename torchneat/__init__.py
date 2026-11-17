@@ -23,14 +23,16 @@ _EXPORTS = {
     "Config": "config",
     # modules
     "Genome": "core.genome",
+    "Ancestry": "core.ancestry",
+    "GeneBank": "core.genebank",
     "Model": "nn.model",
     "NeatModule": "nn.module",
     "NeatParameter": "nn.parameter",
     # evolution
     "Population": "core.population",
     "Reproduction": "core.reproduction",
+    "Specie": "core.species",
     "Species": "core.species",
-    "SpeciesSet": "core.species",
     "Stagnation": "core.stagnation",
     # reporting
     "BaseReporter": "reporting",
@@ -57,10 +59,12 @@ if TYPE_CHECKING:  # pragma: no cover
     from . import backends, config, core, nn, optim, reporting, rl, utils
     from .backends import cuda_is_available, get_device, get_tpb, set_device, set_tpb
     from .config import Config
+    from .core.ancestry import Ancestry
+    from .core.genebank import GeneBank
     from .core.genome import Genome
     from .core.population import Population
     from .core.reproduction import Reproduction
-    from .core.species import Species, SpeciesSet
+    from .core.species import Specie, Species
     from .core.stagnation import Stagnation
     from .nn.model import Model
     from .nn.module import NeatModule

@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+## 0.2.0
+- `general.pop_size` is now `general.min_pop_size`; the `genomes` argument of `Population` is optional and overrides it. `general.genera` sets the number of genera, overridden by the `genera` option.
+- `Species` is now `Specie` and `SpeciesSet` is now `Species`.
+- Genomes track `created`, `age`, `best_fitness` and `improved`; species track `age` and `stagnant_time`.
+- Added `Ancestry` (`Population.ancestry`) for optional key-only lineage tracking.
+- Added `GeneBank` (`Population.genebank`) to keep elite genomes as parents beyond culling.
+- Species keep a stable representative across generations, so ids are no longer recreated whenever the best genome changes.
+- `GeneBank` limits apply per specie by default; `scope='genus'` applies them per genus.
+- Documented `Ancestry` and `GeneBank` in `docs/ancestry-genebank.md`.
+- Added `torchneat.experimental.GraphNetwork`, a node and connection feed-forward network on fixed-shape parameters.
+
 ## 0.1.0
 - First release of `torchneat`, a restructured package built from an earlier private project (its history is not carried over).
 - New layout: `core/` (genome, species, stagnation, reproduction, population), `backends/` (device-independent

@@ -3,7 +3,7 @@
 # this package only holds the numba kernels and the CPU backend that plugs them into it.
 
 from ...config import Config
-from ...core.species import SpeciesSet
+from ...core.species import Species
 from ...core.stagnation import Stagnation
 from ...nn import Genome, NeatModule
 from ...reporting import ReporterSet
@@ -27,16 +27,16 @@ def initialize(config: Config, module: NeatModule, tpb=1, verbose: bool | int = 
 def reproduce(
         config: Config, genera: list[int], modules: dict[int, NeatModule], population: dict[int, Genome],
         ancestors: dict[int, tuple[Genome, Genome]], generation: int, to_delete: list[int], genome_indexer: int,
-        stagnation: Stagnation, species_set: SpeciesSet, reporters: ReporterSet,
-        tpb=1, verbose: bool | int = False):
+        stagnation: Stagnation, species_set: Species, reporters: ReporterSet,
+        tpb=1, verbose: bool | int = False, genebank=None):
     return _reproduction.reproduce(
         BACKEND, config, genera, modules, population, ancestors, generation, to_delete, genome_indexer,
-        stagnation, species_set, reporters, tpb, verbose
+        stagnation, species_set, reporters, tpb, verbose, genebank
     )
 
 
 def speciate(config: Config, genera: list[int], modules: dict[int, NeatModule],
-             species_set: SpeciesSet, population: dict[int, Genome],
+             species_set: Species, population: dict[int, Genome],
              generation: int, tpb=10, verbose: bool | int = False):
     return _speciation.speciate(BACKEND, config, genera, modules, species_set, population, generation, tpb, verbose)
 

@@ -9,21 +9,25 @@ from typing import TYPE_CHECKING
 
 _EXPORTS = {
     "Genome": "genome",
+    "Ancestry": "ancestry",
+    "GeneBank": "genebank",
+    "Specie": "species",
     "Species": "species",
-    "SpeciesSet": "species",
     "Stagnation": "stagnation",
     "Reproduction": "reproduction",
     "Population": "population",
 }
-_SUBMODULES = ("constants", "genome", "population", "reproduction", "species", "stagnation")
+_SUBMODULES = ("ancestry", "constants", "genebank", "genome", "population", "reproduction", "species", "stagnation")
 
 __all__ = [*_EXPORTS, *_SUBMODULES]
 
 if TYPE_CHECKING:  # pragma: no cover
+    from .ancestry import Ancestry
+    from .genebank import GeneBank
     from .genome import Genome
     from .population import Population
     from .reproduction import Reproduction
-    from .species import Species, SpeciesSet
+    from .species import Specie, Species
     from .stagnation import Stagnation
 
 

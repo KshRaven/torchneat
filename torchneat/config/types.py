@@ -13,7 +13,11 @@ class GeneralConfig(Configuration):
 
         self.fitness_criterion   = 'max'
         self.fitness_threshold   = math.inf
-        self.pop_size            = 100
+        # Initial / target size of a population. The ``genomes`` argument of ``Population`` overrides it; species
+        # minimums and elitism can push the live population above it.
+        self.min_pop_size        = 100
+        # Number (or list of IDs) of genera sharing one module. The ``genera`` option of ``Population`` overrides it.
+        self.genera              = 1
         self.reset_on_extinction = True
         # None -> no reproducibility (fresh entropy); int -> reproducible. Only affects the torchneat backend.
         self.seed                = None
@@ -73,6 +77,28 @@ class ReproductionConfig(Configuration):
         self.preserve_elite     = False
 
 
+class AncestryConfig(Configuration):
+    def __init__(self):
+        super(AncestryConfig, self).__init__('ancestry config')
+
+        self.enabled = False
+
+
+class GeneBankConfig(Configuration):
+    def __init__(self):
+        super(GeneBankConfig, self).__init__('genebank config')
+
+        self.enabled     = False
+        self.capacity    = 10     # genomes kept per scope
+        self.scope       = 'specie'  # what capacity and slots apply to: 'specie' or 'genus'
+        self.slots       = None   # distinct slot ids per genus (episodes / seeds); None -> rolling top-`capacity`
+        self.per_slot    = 1      # genomes kept per slot
+        self.top         = 1      # best genomes per genus banked automatically every generation (0 -> manual only)
+        self.fill        = True   # fill capacity left over by the slots with the best remaining candidates
+        self.policy      = 'fitness'  # eviction of rolling genomes: 'fitness' (worst first) or 'oldest'
+        self.max_age     = None   # drop genomes banked more than this many generations ago; None -> keep
+
+
 class RLConfig(Configuration):
     """
     Open-ended, initially empty section for RL / scheduler-driven hyper-parameters (e.g. ``rew_reg``, ``ent_reg``).
@@ -123,6 +149,8 @@ class Config:
         self.species      = SpeciesConfig()
         self.stagnation   = StagnationConfig()
         self.reproduction = ReproductionConfig()
+        self.ancestry     = AncestryConfig()
+        self.genebank     = GeneBankConfig()
         self.rl           = RLConfig()
 
     def save(self, verbose: bool | int = True):
@@ -134,6 +162,8 @@ class Config:
         self.species.create(self.path, verbose=verbose)
         self.stagnation.create(self.path, verbose=verbose)
         self.reproduction.create(self.path, verbose=verbose)
+        self.ancestry.create(self.path, verbose=verbose)
+        self.genebank.create(self.path, verbose=verbose)
         self.rl.create(self.path, verbose=verbose)
 
     def load(self, verbose: bool | int = False):
@@ -142,6 +172,8 @@ class Config:
         self.species.load(self.path, verbose=verbose)
         self.stagnation.load(self.path, verbose=verbose)
         self.reproduction.load(self.path, verbose=verbose)
+        self.ancestry.load(self.path, verbose=verbose)
+        self.genebank.load(self.path, verbose=verbose)
         self.rl.load(self.path, verbose=verbose)
 
     def update(self, verbose: bool | int = False):
@@ -150,4 +182,6 @@ class Config:
         self.species.update(self.path, verbose=verbose)
         self.stagnation.update(self.path, verbose=verbose)
         self.reproduction.update(self.path, verbose=verbose)
+        self.ancestry.update(self.path, verbose=verbose)
+        self.genebank.update(self.path, verbose=verbose)
         self.rl.update(self.path, verbose=verbose)
