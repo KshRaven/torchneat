@@ -370,7 +370,7 @@ class NEAT(Algorithm):
                 block[rows] = values[rows, :n_eps]
                 return block
             ep_ids = np.broadcast_to(runs.ids[rows[0], :n_eps], (G, n_eps)).astype(np.int64)
-            sec.append_block(
+            self.append_secondary_block(rows,
                 ec_reward=full(-np.inf, ep_returns), ep_accuracy=full(0.0, ep_accuracy),
                 ep_reduction=full(+np.inf, np.broadcast_to(reduction[:, None], (G, n_eps))),
                 ep_stdev=full(+np.inf, ep_stdev), ep_map=ep_ids, ep_len=full(-np.inf, runs.lengths),

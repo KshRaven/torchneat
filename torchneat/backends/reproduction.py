@@ -41,6 +41,13 @@ GENOME   = Genome.class_type.instance_type
 GENOME_LIST = types.ListType(GENOME)
 
 
+def typed_list(values, kind) -> List:
+    result = List.empty_list(kind)
+    for value in values:
+        result.append(value)
+    return result
+
+
 @njit(parallel=True, cache=True)
 def compute_spawn(adjusted_fitness: list[float], previous_sizes: list[int], pop_size: int, min_species_size: int,
                   purge: int, generation: int):
@@ -329,7 +336,13 @@ def create_children(genus: int, genus_population: dict[int, Genome], population:
                     break
             if not present:
                 bank_extra.append(bank_genome)
-        pool = List(list(old_members) + list(extra_members) + list(bank_extra)) # TODO: Numba currently cannot add typed lists
+        pool = List.empty_list(GENOME)
+        for member in old_members:
+            pool.append(member)
+        for member in extra_members:
+            pool.append(member)
+        for member in bank_extra:
+            pool.append(member)
         pool_size = len(pool)
         pool_fitness = np.empty(pool_size, np.float64)
         pool_foreign = np.zeros(pool_size, np.bool_)
@@ -614,8 +627,12 @@ def reproduce(
         # TODO: add pop size to arguments or just get from current population?
         pop_size = len(genomes)
 
-        spawn_amounts = compute_spawn(adjusted_fitnesses, previous_sizes, pop_size, min_species_size,
-                                      config.reproduction.purge, generation)
+        spawn_amounts = compute_spawn(
+            np.array(adjusted_fitnesses, dtype=np.float64),
+            np.array(previous_sizes, dtype=np.int64),
+            pop_size, min_species_size, config.reproduction.purge, generation
+        )
+        spawn_amounts = typed_list([int(value) for value in spawn_amounts], types.int64)
 
         genus_population: dict[int, Genome] = Dict.empty(INT, GENOME)
 

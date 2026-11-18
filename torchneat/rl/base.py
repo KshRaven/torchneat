@@ -377,6 +377,14 @@ class Algorithm(object):
         """Keeps only the last ``steps`` episode records of each genome in the secondary (score) buffer."""
         self.secondary.keep_last_steps(steps, keys)
 
+    def append_secondary_block(self, rows: np.ndarray, **blocks: np.ndarray):
+        """Append episode scores only to rows that were evaluated in this generation."""
+        lengths = self.secondary.lengths.copy()
+        active = np.zeros(len(lengths), dtype=bool)
+        active[rows] = True
+        self.secondary.append_block(**blocks)
+        self.secondary.lengths[~active] = lengths[~active]
+
     def reset_buffers(self):
         self.primary.reset()
         self.secondary.reset()
@@ -674,10 +682,22 @@ class Algorithm(object):
         return self.ops.segment_mean(self.ops.record_mean(array, lengths, rows), runs, rows)
 
     def row_stats(self, matrix: np.ndarray, counts: np.ndarray, rows: np.ndarray, ddof: int = 0):
-        """Mean and std over the first ``counts[g]`` entries per row; raises on NaN (as the former fixed_std)."""
+        """Mean and std over the first ``counts[g]`` entries per row; raises on non-finite statistics."""
         mean, std = self.ops.row_mean_std(matrix, counts, rows, ddof)
-        if np.isnan(std[rows]).any():
-            raise ValueError("std_dev raised NaN")
+        bad_rows = rows[~np.isfinite(mean[rows]) | ~np.isfinite(std[rows])]
+        if bad_rows.size:
+            details = []
+            for row in bad_rows[:8]:
+                count = int(counts[row])
+                values = matrix[row, :count]
+                nonfinite = np.flatnonzero(~np.isfinite(values))
+                details.append(
+                    f"row {int(row)} (count={count}, mean={mean[row]!r}, std={std[row]!r}, "
+                    f"non-finite episode indices={nonfinite[:8].tolist()})"
+                )
+            remaining = bad_rows.size - len(details)
+            suffix = f"; {remaining} more rows" if remaining else ""
+            raise ValueError(f"Non-finite episode statistics in {bad_rows.size} rows: {'; '.join(details)}{suffix}")
         return mean, std
 
     @staticmethod

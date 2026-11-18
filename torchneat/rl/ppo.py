@@ -355,7 +355,7 @@ class PPO(Algorithm):
                 block[rows] = matrix[rows, :n_eps]
                 return block
             ep_ids = np.broadcast_to(runs.ids[rows[0], :n_eps], (G, n_eps)).astype(np.int64)
-            sec.append_block(
+            self.append_secondary_block(rows,
                 ec_return=full(-np.inf, ep_return), ep_loss=full(+np.inf, ep_loss), ep_val=full(+np.inf, ep_val),
                 ep_mean=full(+np.inf, ep_pol), ep_std=full(+np.inf, ep_ent), ep_map=ep_ids,
                 ep_len=full(-np.inf, runs.lengths),

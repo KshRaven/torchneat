@@ -367,8 +367,12 @@ class Population(object):
         update_genome_stats(self.genomes, self.generation, self.config.general.fitness_criterion == 'min')
         # Track the best genome ever seen.
         for genus in self.genera:
+            genus_genomes = List.empty_list(GENOME)
+            for g in self.genomes.values():
+                if g.genus == genus:
+                    genus_genomes.append(g)
             self.best_genomes[genus] = get_best_genomes(
-                List([g for g in self.genomes.values() if g.genus == genus]),
+                genus_genomes,
                 self.config.general.fitness_criterion, None
             )
 

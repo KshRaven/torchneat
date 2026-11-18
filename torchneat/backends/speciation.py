@@ -200,7 +200,9 @@ def speciate(backend: Backend, config: Config, genera: list[int], modules: dict[
     distances_by_module = {}
     for species, genomes, module, genus in zip(species_genera, population_genera, modules_genera, genera):
         assert isinstance(genomes, Dict)
-        unspeciated: list[int]              = List(set(genomes.keys()))
+        unspeciated: list[int]              = List.empty_list(INT)
+        for key in set(genomes.keys()):
+            unspeciated.append(key)
         distances_cache = distances_by_module.get(id(module))
         if distances_cache is None:
             distances_cache = GenomeDistanceCache()

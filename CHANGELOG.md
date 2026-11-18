@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+## 0.2.1
+- Replaced reflected lists with typed lists and arrays in Numba reproduction, speciation and best-genome selection calls.
+- Fixed NEAT and PPO secondary-buffer updates for partially evaluated populations.
+- Added detailed validation errors for non-finite episode statistics.
+- Added RL statistics regression tests.
+
 ## 0.2.0
 - `general.pop_size` is now `general.min_pop_size`; the `genomes` argument of `Population` is optional and overrides it. `general.genera` sets the number of genera, overridden by the `genera` option.
 - `Species` is now `Specie` and `SpeciesSet` is now `Species`.
