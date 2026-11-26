@@ -367,7 +367,7 @@ class PolicyTrainer(Algorithm):
             use_val = self.use_critic and self.val_reg != 0.
             need_eval = use_loss or use_pol or (use_ent and self.use_entropy)
             need_std = use_ent and not self.use_entropy
-            zeros = np.zeros((G, prim.max_size()), np.float64)
+            zeros = np.zeros_like(prim.data['ep_map'], dtype=np.float64)
             loss_rec = sq_rec = ent_rec = zeros
             if need_eval:
                 loss_rec, sq_rec, ent_rec = self.record_terms(valid_keys, rows, lengths, advantages, returns_current)

@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+## 0.3.1
+- Fixed PPO record-buffer sizing for short rollouts by matching the configured rollout capacity.
+
 ## 0.3.0
 - RL trainers now run their post-rollout bookkeeping on a CPU or CUDA backend (`torchneat.rl.backend`) that follows `torchneat.set_device()`; `device=` on a trainer overrides it.
 - Added `torchneat.backends.cpu.grid()` / `gridsize()`, a Numba overload that works like `numba.cuda.grid` inside `prange` kernels, so (x, y, z) launches run as one flattened parallel loop. The CPU kernels use it and no longer set `nogil`.
