@@ -87,6 +87,28 @@ def compute_spawn(adjusted_fitness: list[float], previous_sizes: list[int], pop_
     for idx in prange(len(spawn_amounts)):
         spawn_amounts[idx] = max(min_species_size, int(round(spawn_amounts[idx] * norm)))
 
+    # Rounding and species minimums can leave the total off target: settle the difference on the fittest/largest species.
+    guard = 0
+    total_spawn = sum(spawn_amounts)
+    while total_spawn != pop_size and guard < 4 * pop_size + 16:
+        guard += 1
+        if total_spawn < pop_size:
+            best = 0
+            for idx in range(len(spawn_amounts)):
+                if adjusted_fitness[idx] > adjusted_fitness[best]:
+                    best = idx
+            spawn_amounts[best] += 1
+            total_spawn += 1
+        else:
+            best = -1
+            for idx in range(len(spawn_amounts)):
+                if spawn_amounts[idx] > min_species_size and (best < 0 or spawn_amounts[idx] > spawn_amounts[best]):
+                    best = idx
+            if best < 0:
+                break
+            spawn_amounts[best] -= 1
+            total_spawn -= 1
+
     # Limit to min_species_size when enabled
     if purge > 0:
         if generation % purge == 0:
@@ -624,8 +646,7 @@ def reproduce(
         # That would probably produce more accurate tracking of population sizes and relative fitnesses... doing.
         # TODO: document.
         min_species_size = max(min_species_size, max([np.ceil(config.reproduction.elitism * len(s.members)) for s in remaining_species]))
-        # TODO: add pop size to arguments or just get from current population?
-        pop_size = len(genomes)
+        pop_size = max(len(genomes), int(config.general.min_pop_size), 1)
 
         spawn_amounts = compute_spawn(
             np.array(adjusted_fitnesses, dtype=np.float64),

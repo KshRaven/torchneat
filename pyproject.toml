@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "torchneat"
-dynamic = ["version"]
+dynamic = ["version", "optional-dependencies"]
 description = "TorchNEAT - GPU/CPU accelerated neuroevolution for PyTorch modules"
 readme = "README.md"
 license = "MIT"
@@ -32,21 +32,11 @@ dependencies = [
     "colorama",
 ]
 
-# What you get from each install:
-#   pip install torchneat               CPU backend (numba prange) + PyTorch modules + RL trainers
-#   pip install "torchneat[gpu]"        + CUDA backend (cupy / numba-cuda); needs an NVIDIA GPU
-#   pip install "torchneat[logging]"    + runlytics dashboard logging for the RL trainers
-#   pip install -e ".[dev]"             + pytest, ruff, build, twine (GPU tests skip themselves without a GPU)
-[project.optional-dependencies]
-gpu = [
-    "cuda-python>=12.0",
-    "cuda-toolkit",
-    "numba-cuda[cu13]",
-    "cupy-cuda13x",
-]
-logging = ["runlytics"]
-all = ["torchneat[gpu,logging]"]
-dev = ["pytest>=8", "ruff", "build>=1.0", "twine>=5.0"]
+# Extras (gpu, logging, all, dev) are defined in setup.py; gpu pins the CUDA libraries to the installed driver.
+# Set TORCHNEAT_CUDA=cpu|auto|X.Y to override detection. `torchneat-install` also picks the matching PyTorch wheel index.
+[project.scripts]
+torchneat-install = "torchneat._install:main"
+
 
 [project.urls]
 Homepage = "https://github.com/KshRaven/torchneat"

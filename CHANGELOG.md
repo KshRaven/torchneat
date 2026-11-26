@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+## 0.2.2
+- Added `setup.py`: the `gpu` extra pins `numba-cuda`, `cupy`, `cuda-python`, `cuda-bindings`, `cuda-toolkit` and the `nvidia-*` libraries to the CUDA version of the installed NVIDIA driver (`TORCHNEAT_CUDA=cpu|auto|X.Y` overrides it).
+- Added the `torchneat-install` command, which installs the PyTorch wheel (CPU or CUDA index) and CUDA libraries matching the system.
+- Fixed the GPU backend failing to compile kernels with NumPy 2.4+ (`np.row_stack` was removed).
+- `Population(n, ..., genera=g)` now creates `n` genomes per genus (`n * g` in total); `genus_sizes` no longer has to sum to `n`.
+- Reproduction keeps every genus at no fewer than `min_pop_size` genomes, and species spawn totals now add up exactly to the target size.
+- Hid the numba CUDA low-occupancy warnings; `torchneat.perf_warnings()` and `TORCHNEAT_PERF_WARNINGS=1` show them again.
+- Added `scripts/benchmark_backends.py` to compare the CPU and GPU backends.
+- Documented installation, PyTorch wheel indexes, the memory model, benchmarking and troubleshooting in `docs/`.
+
 ## 0.2.1
 - Replaced reflected lists with typed lists and arrays in Numba reproduction, speciation and best-genome selection calls.
 - Fixed NEAT and PPO secondary-buffer updates for partially evaluated populations.

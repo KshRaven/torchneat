@@ -114,10 +114,10 @@ class Population(object):
         if state_dict is None:
             # Create a population from scratch, then partition into species.
             genus_sizes = manage_params(options, 'genus_sizes', None)
-            if genus_sizes is not None and sum(genus_sizes.values()) != genomes:
-                raise ValueError("genus_sizes must sum to the population size")
+            if genus_sizes is None:
+                genus_sizes = {genus: genomes for genus in self.genera}
             self.genomes = self.reproduction.create_new(
-                self.genera, genus_sizes if genus_sizes is not None else self.size, self.modules[self.genus],
+                self.genera, genus_sizes, self.modules[self.genus],
                 tpb=self.threads_per_block, verbose=verbose
             )
             speciate(

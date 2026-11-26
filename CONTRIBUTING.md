@@ -4,6 +4,7 @@
 pip install -e ".[dev]"
 pytest -m "not gpu"      # CPU tests (what CI runs)
 pytest -m gpu            # GPU tests, needs an NVIDIA GPU + `pip install -e ".[gpu]"`; skipped when none is usable
+python scripts/benchmark_backends.py   # CPU vs GPU backend timings (needs an editable install)
 ruff check .
 ```
 

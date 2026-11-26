@@ -38,6 +38,10 @@ Controls the overall evolution loop:
 - fitness criterion and threshold
 - minimum (initial) population size, overridden by the `genomes` argument of `Population`
 - number of genera, overridden by the `genera` option of `Population`
+
+The population size applies to every genus: `Population(100, module, config, genera=2)` creates 200 genomes, 100 per
+genus, and reproduction keeps each genus at no fewer than `min_pop_size` genomes. Pass `genus_sizes={genus: size}` to
+`Population` to give genera different initial sizes.
 - reset-on-extinction behavior
 - random seed
 

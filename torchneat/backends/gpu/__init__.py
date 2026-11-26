@@ -2,6 +2,11 @@
 # Device independent logic lives in torchneat.base.{initialization, reproduction, speciation, util, functional};
 # this package only holds the numba kernels and the GPU backend that plugs them into it.
 
+import numpy as _np
+
+if not hasattr(_np, 'row_stack'):
+    _np.row_stack = _np.vstack
+
 from ...config import Config
 from ...core.species import Species
 from ...core.stagnation import Stagnation

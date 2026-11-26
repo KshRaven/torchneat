@@ -17,4 +17,4 @@
 - Running-statistics variants of batch normalisation and adaptive average pooling.
 
 ## Packaging
-- Platform-aware GPU setup checks (Windows/Linux, AMD/Intel fallbacks).
+- GPU setup for AMD/Intel devices (CUDA pins are NVIDIA only).

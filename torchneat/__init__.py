@@ -14,7 +14,10 @@ only needs ``import torchneat.nn as nn``.
 from importlib import import_module
 from typing import TYPE_CHECKING
 
+from . import _perf
 from ._version import __version__
+
+_perf.silence()
 
 # name -> submodule that defines it. Everything is imported lazily (PEP 562) so ``import torchneat`` stays cheap and
 # the optional GPU / logging dependencies are never touched until used.
@@ -47,6 +50,8 @@ _EXPORTS = {
     "get_tpb": "backends",
     "set_device": "backends",
     "set_tpb": "backends",
+    # warnings
+    "perf_warnings": "_perf",
     # utils
     "CM": "utils",
     "Fore": "utils",
@@ -66,6 +71,7 @@ if TYPE_CHECKING:  # pragma: no cover
     from .core.reproduction import Reproduction
     from .core.species import Specie, Species
     from .core.stagnation import Stagnation
+    from ._perf import perf_warnings
     from .nn.model import Model
     from .nn.module import NeatModule
     from .nn.parameter import NeatParameter

@@ -117,9 +117,9 @@ def test_population_can_reproduce_multiple_genera_on_one_module():
     population = Population(20, module, config, genera=2, verbose=False)
 
     assert len(population.genera) == 2
-    assert len(population.genomes) == 20
-    assert all(parameter.shape[0] == 20 for parameter in module.neat_parameters())
-    assert all(len(mapping) == 10 for mapping in population.get_mapping())
+    assert len(population.genomes) == 40
+    assert all(parameter.shape[0] == 40 for parameter in module.neat_parameters())
+    assert all(len(mapping) == 20 for mapping in population.get_mapping())
 
     def evaluate(current_population, **_options):
         for index, genome in enumerate(current_population.genomes.values()):
@@ -134,15 +134,15 @@ def test_population_can_reproduce_multiple_genera_on_one_module():
     restored.load(state_dict=population.state_dict(), strict=False, verbose=False)
     assert restored.genera == population.genera
     assert restored.genus == population.genus
-    assert all(len(mapping) == 10 for mapping in restored.get_mapping())
+    assert all(len(mapping) == len(population.get_mapping()[index]) for index, mapping in enumerate(restored.get_mapping()))
 
     retained_genus = population.genera[-1]
     retained_keys = [key for key, genome in population.genomes.items() if genome.genus == retained_genus]
     population.crop(retained_keys, device="cpu")
     assert population.genera == [retained_genus]
     assert population.genus == retained_genus
-    assert len(population.genomes) == 10
-    assert all(parameter.shape[0] == 10 for parameter in module.neat_parameters())
+    assert len(population.genomes) == len(retained_keys)
+    assert all(parameter.shape[0] == len(retained_keys) for parameter in module.neat_parameters())
 
 
 def test_population_consolidates_compatible_absorbed_modules():

@@ -9,13 +9,24 @@ RL trainers (`NEAT`, `PPO`) are included; environment design and fitness evaluat
 
 ## Install
 
-Python 3.11 or newer.
+Python 3.11 or newer. Install PyTorch first, from the wheel index that matches what you want, then TorchNEAT:
 
 ```bash
-pip install torchneat                 # CPU backend
-pip install "torchneat[gpu]"          # + CUDA backend (NVIDIA GPU)
+# CPU only (any OS; on Linux this avoids the multi-GB CUDA wheels)
+pip install torch --index-url https://download.pytorch.org/whl/cpu
+pip install torchneat
+
+# NVIDIA GPU: use your driver's CUDA version from `nvidia-smi` (cu132 = CUDA 13.2), required on Windows
+pip install torch --index-url https://download.pytorch.org/whl/cu132
+pip install "torchneat[gpu]"
+
 pip install "torchneat[logging]"      # + runlytics logging for the RL trainers
 ```
+
+`pip install torchneat` alone takes whatever PyTorch PyPI serves: the CUDA build on Linux, the CPU build on Windows
+and macOS. `[gpu]` adds the numba/cupy/CUDA libraries pinned to the CUDA version of your NVIDIA driver, but never
+changes your PyTorch build. `torchneat-install` detects the system and sets up PyTorch and the CUDA libraries for you
+(`--cpu` to force CPU). See [Installation](docs/installation.md) and [Troubleshooting](docs/troubleshooting.md).
 
 ## Quick start
 
@@ -60,8 +71,11 @@ Everything you normally take from `torch.nn` (activations, dropout, flatten, con
 
 ## Devices
 
-CPU is the default. Choose the device with `torchneat.set_device("cuda")` or the `TORCHNEAT_DEVICE` environment
-variable; `torchneat.cuda_is_available()` tells whether the GPU backend is usable.
+CPU is the default. Choose the NEAT backend with `torchneat.set_device("cuda")` or the `TORCHNEAT_DEVICE` environment
+variable; `torchneat.cuda_is_available()` tells whether the GPU backend is usable. `set_device` does not move your
+model: create the `NeatParameter`s / `NeatModule`s on the same device (`device="cuda"`) so the backend can use the
+weights in place. The numba CUDA occupancy warnings are hidden; set `TORCHNEAT_PERF_WARNINGS=1` or use
+`with torchneat.perf_warnings():` to show them.
 
 ## Saving and loading
 
@@ -75,6 +89,9 @@ Checkpoints use `pickle`; only load files you trust.
 
 ## Documentation
 
+- [Installation](docs/installation.md): PyTorch wheel indexes, the `gpu` extra, `torchneat-install`, memory model.
+- [Troubleshooting](docs/troubleshooting.md): install, CUDA and performance problems.
+- [Benchmarking](docs/benchmarking.md): CPU versus GPU backend benchmark script.
 - [Configuration](docs/configuration.md): experiment settings and schedulers.
 - [Ancestry and GeneBank](docs/ancestry-genebank.md): lineage tracking and elite parent storage.
 - [Reinforcement learning](docs/reinforcement-learning.md): trainers, rollout behaviour and metrics.
