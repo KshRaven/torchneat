@@ -11,11 +11,12 @@ from .. import initialization as _initialization
 from .. import reproduction as _reproduction
 from .. import speciation as _speciation
 from . import initialization, mutation, reproduction, speciation
+from .grid import grid, gridsize
 from .backend import BACKEND, CpuBackend
 from .mutation import mutate
 
 __all__ = [
-    'BACKEND', 'CpuBackend', 'initialize', 'initialization', 'mutate', 'mutation',
+    'BACKEND', 'CpuBackend', 'grid', 'gridsize', 'initialize', 'initialization', 'mutate', 'mutation',
     'reproduce', 'reproduction', 'speciate', 'speciation',
 ]
 

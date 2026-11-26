@@ -2,10 +2,7 @@
 
 TorchNEAT is a PyTorch-based neuroevolution library. It evolves the parameters of `NeatModule` models through
 initialization, mutation, speciation and reproduction, on the CPU (numba) or on an NVIDIA GPU (numba.cuda / cupy).
-RL trainers (`NEAT`, `PPO`) are included; environment design and fitness evaluation remain the caller's job.
-
-> TorchNEAT grew out of an earlier private project of the same author. This repository is a clean restructure; the old
-> history is not carried over.
+RL trainers (`NEAT`, `PPO`, `A2C`, `TRPO`, `DQN`) are included; environment design and fitness evaluation remain the caller's job.
 
 ## Install
 

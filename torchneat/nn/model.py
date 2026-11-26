@@ -125,6 +125,9 @@ class Model(NeatModule):
 
     def get_value(self, state: Tensor, keys: int | Iterable[int] = None) -> Tensor:
         raise NotImplementedError(f"No 'get_value' method")
+
+    def get_q_values(self, state: Tensor, keys: int | Iterable[int] = None) -> Tensor:
+        raise NotImplementedError(f"No 'get_q_values' method")
     
     def extra_repr(self) -> str:
         return f"distribution='{self.distribution}'"

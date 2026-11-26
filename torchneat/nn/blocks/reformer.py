@@ -168,6 +168,14 @@ class Reformer(Model):
         else:
             raise NotImplementedError(f"Value modules were not initialized")
 
+    def get_q_values(self, state: Tensor, keys: Union[int, Iterable[int]] = None, **options) -> Tensor:
+        """Action values for discrete actions: the policy head's outputs before any distribution is applied."""
+        pos_idx = manage_params(options, ['pos_idx', 'idx'], None)
+        single  = manage_params(options, 'single', self.single_pass)
+        latent  = self.get_latent(self.pol_proj, state, keys, pos_idx, False, False, single)
+        values  = self.get_mean(self.mean_log_std(latent, keys=keys), keys)
+        return values.squeeze(-2) if single else values
+
     @staticmethod
     def randomize(tensor: Tensor, noise: Tensor = None):
         if noise is None:

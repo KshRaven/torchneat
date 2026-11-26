@@ -44,6 +44,9 @@ _EXPORTS = {
     # reinforcement learning
     "NEAT": "rl",
     "PPO": "rl",
+    "A2C": "rl",
+    "TRPO": "rl",
+    "DQN": "rl",
     # backends
     "cuda_is_available": "backends",
     "get_device": "backends",
@@ -76,7 +79,7 @@ if TYPE_CHECKING:  # pragma: no cover
     from .nn.module import NeatModule
     from .nn.parameter import NeatParameter
     from .reporting import BaseReporter, ReporterSet, StdOutReporter
-    from .rl import NEAT, PPO
+    from .rl import A2C, DQN, NEAT, PPO, TRPO
     from .utils import CM, Fore
 
 

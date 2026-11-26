@@ -1,6 +1,6 @@
 # Reinforcement Learning
 
-`torchneat.rl` collects environment rollouts for a population, scores its genomes, and records training metrics. Its trainers are `NEAT` and `PPO`; both are available as `neat.rl.NEAT` / `neat.rl.PPO` and `neat.NEAT` / `neat.PPO`. `Ghost` is the `NEAT` trainer with an explicit `ghosts` mapping for cross-genus policy regularization.
+`torchneat.rl` collects environment rollouts for a population, scores its genomes, and records training metrics. Its trainers are `NEAT`, `PPO`, `A2C`, `TRPO` and `DQN`; each is available as `neat.rl.<Name>` and `neat.<Name>`. `Ghost` is the `NEAT` trainer with an explicit `ghosts` mapping for cross-genus policy regularization.
 
 ## Training loop
 
@@ -14,6 +14,25 @@ trainer.learn(evaluate, steps=2048, epochs=10, verbose=1)
 `evaluate` is called once per training update as `evaluate(population, trainer=trainer)`. It is responsible for running the environment and assigning each genome's fitness. Before recording steps, update the trainer's genome-to-row mapping; then call `trainer.update(...)` with the observation, action, reward, and termination status for each environment step. `PPO.update(...)` also takes the action log-probabilities produced by the policy. `update` returns whether the requested rollout length has been reached.
 
 `steps` is the number of records collected per update, `epochs` is the number of updates (`None` runs indefinitely), and `verbose=1` prints a per-update report. The default batching mode processes genomes individually in record batches; `batching="record"` processes all genomes in a genus together, with `record_batch_size` records at a time.
+
+## Trainers
+
+`PPO`, `A2C`, `TRPO` and `DQN` share `PolicyTrainer`. Genomes are ranked, not trained by gradients: the score combines the return with the trainer's loss (`loss_reg`), the policy consistency (`pol_reg`) and the policy spread (`ent_reg`). The critic is off by default (`use_critic=False`) because NEAT genomes rarely learn useful value estimates; the raw returns are the advantages.
+
+| Trainer | Loss per record | Model methods |
+| --- | --- | --- |
+| `PPO` | `-ratio * advantage` | `evaluate_action` |
+| `A2C` | `-log_prob * advantage` (GAE with `gae_lambda` when `use_critic=True`) | `evaluate_action` |
+| `TRPO` | `-ratio * advantage` plus `kl_coef * max(KL - max_kl, 0)` | `evaluate_action` |
+| `DQN` | squared one-step TD error (discrete actions) | `get_q_values` |
+
+`DQN.update(observations, actions, rewards, terminated)` takes no log-probabilities; the other trainers' `update` does. `recurrent=True` makes the model passes receive one whole episode at a time, in step order, so recurrent policies start each episode from a fresh state.
+
+A new trainer subclasses `PolicyTrainer` and overrides `record_terms` (and optionally `primary_buffers`, `update`, `advantages`, `policy_accuracy`). It uses the CPU or CUDA backend automatically.
+
+## Backend
+
+Post-rollout bookkeeping runs on the device selected with `torchneat.set_device()`. Pass `device="cpu"` or `device="cuda"` to a trainer to override it. CPU kernels are Numba `prange` loops that use `torchneat.backends.cpu.grid()`, which behaves like `numba.cuda.grid`.
 
 ## TensorBoard
 

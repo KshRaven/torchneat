@@ -4,6 +4,7 @@ import numpy as np
 from numba import njit, prange
 from numpy import ndarray as CPUArray
 
+from .grid import grid, gridsize
 from .functional import clamp, normal, uniform
 
 
@@ -34,15 +35,9 @@ def initialize(parameter: CPUArray, init_type: int, mean: float, std: float, min
         x_lim = 1 if parameter.ndim <= 1 else parameter.shape[1]
         y_lim = 1 if parameter.ndim <= 2 else parameter.shape[2]
 
-        # Flat index -> (genome, x, y) without materializing a list of index tuples
-        total = s_g * s_x * s_y
-        yz = s_x * s_y
-        for i in prange(total):
-            # prange indices are unsigned: cast to int64 so // and % stay integers (uint64 with int64 -> float64)
-            flat = np.int64(i)
-            genome_idx = flat // yz
-            x = (flat % yz) // s_y
-            y = flat % s_y
+        # One flat prange over every (genome, x, y) cell, like a cuda.grid(3) launch
+        for i in prange(gridsize(parameter.shape)):
+            genome_idx, x, y = grid(3, i, parameter.shape)
 
             # Linearized thread index
             rng_index = (y * s_x * s_g) + (x * s_g) + genome_idx

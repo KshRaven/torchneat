@@ -18,7 +18,7 @@ from ..optim.scheduler import Scheduler
 from ..utils.console import CM, Fore
 from ..utils.helpers import manage_params
 from ..utils.timing import clock, unix_to_datetime_file
-from .functional import EpisodeRuns, get_rl_backend
+from .backend import EpisodeRuns, get_rl_backend
 from .logger import RunlyticsLogger, SummaryWriter, TensorboardLogger
 from .replay import LogBuffer, RolloutBuffer
 
@@ -91,7 +91,7 @@ class Algorithm(object):
 
     Data lives in dense NumPy arrays (``RolloutBuffer``, shape ``(genomes, records, *features)``) and all the
     post-rollout bookkeeping (sorting by episode, returns, per-episode reductions, accuracies, losses) is done by
-    Numba kernels (``torchneat.rl.functional``). Torch is only used for the model passes, through
+    kernels of the RL backend (``torchneat.rl.backend``: numba on the CPU, CuPy / numba.cuda on the GPU). Torch is only used for the model passes, through
     :meth:`forward_pass`, which supports two batching systems:
 
     * ``batching='genome'``: genomes are processed one by one, each with its own batches of ``batch_size`` records.
@@ -114,10 +114,13 @@ class Algorithm(object):
         else:
             schedulers = list(schedulers)
         # ------------------------------ Device ------------------------------ #
-        # The bookkeeping backend follows the device torchneat.backends uses; the torch device only runs the models.
-        self.ops = get_rl_backend()
+        # The bookkeeping backend follows torchneat.set_device() unless ``device`` overrides it; the torch device
+        # runs the models.
+        self.ops = get_rl_backend(device)
         if device is None:
             device = torch.device('cuda' if self.ops.name == 'cuda' else 'cpu')
+        elif not isinstance(device, torch.device):
+            device = torch.device(device)
         # ------------------------------ Build ------------------------------ #
         self.models                     = models
         self.population: Population     = population
@@ -562,11 +565,17 @@ class Algorithm(object):
         :param batching: ``'genome'``: genomes one by one with ``batch_size`` records per batch. ``'record'``: all genomes
             of a module at once, ``record_batch_size`` records per batch. Defaults to the trainer's setting.
         :param strict: Raise instead of returning None when the module does not implement ``method``.
+
+        With the trainer's ``recurrent`` flag every call receives one whole episode (in step order) instead of
+        ``batch_size`` records, so a recurrent policy sees each episode from its first step.
         :return: Tuple of output arrays, or None when ``method`` is missing / not implemented and ``strict`` is False.
         """
         batching = batching or self.batching
         if batching not in ('genome', 'record'):
             raise ValueError(f"Unknown batching '{batching}'; use 'genome' or 'record'")
+        episodic = bool(getattr(self, 'recurrent', False))
+        if episodic:
+            batching = 'genome'  # episode boundaries differ between genomes
         batch_size = int(batch_size or self.batch_size)
         record_batch_size = int(record_batch_size or self.record_batch_size)
         lengths = self.primary.lengths if lengths is None else lengths
@@ -610,8 +619,13 @@ class Algorithm(object):
                     for key, row in zip(module_keys, rows):
                         sel = slice(int(row), int(row) + 1)
                         total = int(lengths[row])
-                        for c0 in range(0, total, batch_size):
-                            c1 = min(c0 + batch_size, total)
+                        if episodic:
+                            ep = self.primary.data['ep_map'][row, :total]
+                            edges = [0, *(np.flatnonzero(ep[1:] != ep[:-1]) + 1).tolist(), total]
+                            spans = list(zip(edges[:-1], edges[1:]))
+                        else:
+                            spans = [(c0, min(c0 + batch_size, total)) for c0 in range(0, total, batch_size)]
+                        for c0, c1 in spans:
                             result = self._call(func, [a[sel, c0:c1] for a in arrays], key, strict)
                             if result is None:
                                 return None
@@ -645,7 +659,7 @@ class Algorithm(object):
         """
         Rewards -> returns for every genome in ``rows`` at once (Numba). ``rewards`` / ``episodes`` are buffer arrays
         shaped ``(genomes, capacity, ...)`` / ``(genomes, capacity)`` that must be sorted by episode. See
-        ``CpuRLBackend.compute_returns``. The input is not modified.
+        ``RLBackend.compute_returns``. The input is not modified.
 
         ``per_genus`` (default: the trainer's ``norm_per_genus`` option, True): the normalization statistics are taken
         between genomes of the same genus only, so a weak genus is not flattened by a stronger one.
@@ -735,6 +749,8 @@ class Algorithm(object):
         return valid_keys, run_time
 
     def _finish_epoch(self, evaluation_function: callable, epoch_done: int, epochs, verbose: bool | int):
+        if self.ops.name == 'cuda':
+            self.ops.release()
         if self._report_hook is not None:
             self._report_hook(self)
 

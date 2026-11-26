@@ -1,6 +1,13 @@
 # Changelog
 
-## Unreleased
+## 0.3.0
+- RL trainers now run their post-rollout bookkeeping on a CPU or CUDA backend (`torchneat.rl.backend`) that follows `torchneat.set_device()`; `device=` on a trainer overrides it.
+- Added `torchneat.backends.cpu.grid()` / `gridsize()`, a Numba overload that works like `numba.cuda.grid` inside `prange` kernels, so (x, y, z) launches run as one flattened parallel loop. The CPU kernels use it and no longer set `nogil`.
+- Added the `A2C`, `TRPO` and `DQN` trainers. The critic is off by default for every trainer.
+- Moved the shared training loop of `PPO` into `PolicyTrainer`; a new trainer only supplies its loss through `record_terms`.
+- Added `recurrent=True` to the policy trainers: model passes run on whole episodes instead of fixed-size record chunks.
+- Added `Model.get_q_values` for `DQN`.
+- Added `scripts/zip_project.py`, which archives the project without ignored files and can optionally include `.git` and ignored files.
 
 ## 0.2.3
 - Supported Python versions are 3.10 to 3.14; CI and release runs test every version on Linux, Windows and macOS.
@@ -34,7 +41,7 @@
 - Added `torchneat.experimental.GraphNetwork`, a node and connection feed-forward network on fixed-shape parameters.
 
 ## 0.1.0
-- First release of `torchneat`, a restructured package built from an earlier private project (its history is not carried over).
+- First release of `torchneat`.
 - New layout: `core/` (genome, species, stagnation, reproduction, population), `backends/` (device-independent
   orchestration plus `cpu/` and `gpu/` kernels), `nn/` (evolvable modules, layers, blocks, wrapped PyTorch modules),
   `rl/` (NEAT and PPO trainers), `config/`, `optim/`, `reporting/` and `utils/`.
