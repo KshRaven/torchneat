@@ -1,0 +1,17 @@
+site_name: TorchNEAT
+site_description: GPU/CPU accelerated neuroevolution for PyTorch modules
+site_url: https://kshraven.github.io/torchneat/
+repo_url: https://github.com/KshRaven/torchneat
+theme:
+  name: material
+nav:
+  - Home: index.md
+  - Installation: installation.md
+  - Configuration: configuration.md
+  - Ancestry and GeneBank: ancestry-genebank.md
+  - Reinforcement learning: reinforcement-learning.md
+  - Benchmarking: benchmarking.md
+  - Troubleshooting: troubleshooting.md
+validation:
+  links:
+    anchors: warn

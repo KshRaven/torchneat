@@ -10,5 +10,6 @@ _spec.loader.exec_module(_cuda)
 gpu = _cuda.gpu_requirements(_cuda.driver_cuda_version())
 logging = ["runlytics"]
 dev = ["pytest>=8", "ruff", "build>=1.0", "twine>=5.0"]
+docs = ["mkdocs>=1.6,<2", "mkdocs-material>=9.5"]
 
-setup(extras_require={"gpu": gpu, "logging": logging, "all": gpu + logging, "dev": dev})
+setup(extras_require={"gpu": gpu, "logging": logging, "all": gpu + logging, "dev": dev, "docs": docs})

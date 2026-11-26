@@ -1,6 +1,6 @@
 # Installation
 
-TorchNEAT needs Python 3.11 or newer. The GPU backend needs an NVIDIA GPU with a CUDA 12 or 13 capable driver.
+TorchNEAT supports Python 3.10 to 3.14. The GPU backend needs an NVIDIA GPU with a CUDA 12 or 13 capable driver.
 
 ## PyTorch comes first
 

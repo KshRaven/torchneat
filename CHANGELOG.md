@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+## 0.2.3
+- Supported Python versions are 3.10 to 3.14; CI and release runs test every version on Linux, Windows and macOS.
+- Added a documentation site published to GitHub Pages.
+
 ## 0.2.2
 - Added `setup.py`: the `gpu` extra pins `numba-cuda`, `cupy`, `cuda-python`, `cuda-bindings`, `cuda-toolkit` and the `nvidia-*` libraries to the CUDA version of the installed NVIDIA driver (`TORCHNEAT_CUDA=cpu|auto|X.Y` overrides it).
 - Added the `torchneat-install` command, which installs the PyTorch wheel (CPU or CUDA index) and CUDA libraries matching the system.

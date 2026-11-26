@@ -9,7 +9,7 @@ RL trainers (`NEAT`, `PPO`) are included; environment design and fitness evaluat
 
 ## Install
 
-Python 3.11 or newer. Install PyTorch first, from the wheel index that matches what you want, then TorchNEAT:
+Python 3.10+. Install PyTorch first, from the wheel index that matches what you want, then TorchNEAT:
 
 ```bash
 # CPU only (any OS; on Linux this avoids the multi-GB CUDA wheels)
@@ -89,6 +89,7 @@ Checkpoints use `pickle`; only load files you trust.
 
 ## Documentation
 
+- [Documentation site](https://kshraven.github.io/torchneat/)
 - [Installation](docs/installation.md): PyTorch wheel indexes, the `gpu` extra, `torchneat-install`, memory model.
 - [Troubleshooting](docs/troubleshooting.md): install, CUDA and performance problems.
 - [Benchmarking](docs/benchmarking.md): CPU versus GPU backend benchmark script.
